@@ -39,5 +39,42 @@ CHIP CPU {
         pc[15];          // address of next instruction
 
     PARTS:
-    // Put your code here:
+    // check if is A instriction
+    Not(in=instruction[15], out=isAInstruction);
+
+    // evaluate what A might be
+    Mux16(a=aluOut, b=instruction, sel=isAInstruction, out=valueToA);
+    // write to A if instructed
+    Or(a=isAInstruction, b=instruction[5], out=loadA);
+    ARegister(in=valueToA, load=loadA, out=registerA, out[0..14]=addressM);    
+
+    // writes to D if instructed
+    And(a=instruction[4], b=instruction[15], out=loadD);
+    DRegister(in=aluOut, load=loadD, out=registerD);
+
+    // decides if alu operates with A or M
+    Mux16(a=registerA, b=inM, sel=instruction[12], out=AMValue);    
+
+    // execute function in the ALU
+    ALU(x=registerD, y=AMValue,
+        zx=instruction[11], nx=instruction[10], zy=instruction[9], ny=instruction[8], f=instruction[7], no=instruction[6],
+        out=aluOut, out=outM, zr=aluIsZero, ng=aluIsNegative);
+    
+    // evaluate jump
+    Or(a=aluIsZero, b=aluIsNegative, out=notPositive);    
+    Not(in=notPositive, out=aluIsPositive);
+
+    And(a=aluIsPositive, b=instruction[0], out=JGT);
+    And(a=aluIsZero, b=instruction[1], out=JEQ);
+    And(a=aluIsNegative, b=instruction[2], out=JLT);
+
+    Or(a=JGT, b=JEQ, out=jump1);    
+    Or(a=jump1, b=JLT, out=jump2);    
+    And(a=jump2, b=instruction[15], out=shouldJump);
+    Not(in=shouldJump, out=shouldIncrement);
+    
+    // evaluate if should save in memory
+    And(a=instruction[15], b=instruction[3], out=writeM);
+
+    PC(in=registerA, load=shouldJump, inc=shouldIncrement, reset=reset, out[0..14]=pc);
 }
